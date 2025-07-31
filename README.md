@@ -1,4 +1,7 @@
-plc
-===
+Projeto PLC - 2025.1 - Interpretador
 
-Material da disciplina de paradigmas de linguagens computacionais
+Equipe:
+aams2	Amanda Arruda
+vros	Vitória Rocha
+pvom	Pedro Vítor
+chgs3	Carlos Henrique
