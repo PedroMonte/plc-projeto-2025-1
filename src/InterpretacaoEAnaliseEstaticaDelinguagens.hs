@@ -218,7 +218,14 @@ int a (Atr x t) e = (v1, wr (x,v1) e1)
 
 int a (Seq t u) e = int a u e1
                     where (_,e1) = int a t e
-
+                    
+int a (While cond corpo) e =
+                    case int a cond e of
+                          (Bool True, e1)  -> int a (Seq corpo (While cond corpo)) e1 -- Se a condição é Bool True, executa o corpo e repete o While
+                          (Bool False, e1) -> (Null, e1) -- Se a condição é Bool False, finaliza retornando Null
+                          (_, e1)          -> (Erro, e1) -- Qualquer outro valor na condição gera erro
+                          
+int a (New idClasse) e = (Obj [], e) -- Criamos um objeto com lista de atributos vazia
 
 -- search :: Eq a => a -> [(a, Valor)] -> Valor
 
