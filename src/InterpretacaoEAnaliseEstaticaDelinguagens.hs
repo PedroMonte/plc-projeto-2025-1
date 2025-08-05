@@ -134,13 +134,24 @@ aplica _ _ = Excecao
 -- anterior). Representamos, por simplicidade, soma como um termo específico da
 -- linguagem.
 
+-- Termos da Linguagem aumentada
 data Termo = Var Id
            | Lit Numero
            | Som Termo Termo
+           | Mul Termo Termo
            | Lam Id Termo
            | Apl Termo Termo
            | Atr Id Termo
            | Seq Termo Termo
+           | If Termo Termo Termo
+           | While Termo Termo
+           | For Id Termo Termo Termo
+           | Def Id Termo
+           | This
+           | New Id
+           | InstanceOf Termo Id
+           | Call Termo Id [Termo]
+deriving (Show, Eq)
 
 -- A aplicação "(lambda x . + x 2) 3" seria
 termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
@@ -172,6 +183,10 @@ sq3 = (Seq (Atr "y" (Som (Atr "z" (Lit 5)) (Var "z"))) termo3)
 data Valor = Num Double
            | Fun (Valor -> Estado -> (Valor,Estado))
            | Erro
+           | Bool Bool
+           | Obj [(Id, Valor)]
+           | Null
+           | Erro           
 
 type Estado = [(Id,Valor)]
 
@@ -185,6 +200,10 @@ int a (Var x) e = (search x (a ++ e), e)
 int a (Lit n) e = (Num n, e)
 
 int a (Som t u) e = (somaVal v1 v2, e2)
+                    where (v1,e1) = int a t e
+                          (v2,e2) = int a u e1
+
+int a (Mul t u) e = (multVal v1 v2, e2)
                     where (v1,e1) = int a t e
                           (v2,e2) = int a u e1
 
@@ -211,6 +230,10 @@ search i ((j,v):l) = if i == j then v else search i l
 somaVal (Num x) (Num y) = Num (x+y)
 somaVal _ _ = Erro
 
+-- multVal :: Valor -> Valor -> Valor
+multVal (Num x) (Num y) = Num (x*y)
+multVal _ _ = Erro
+
 -- app :: Valor -> Valor -> Estado -> (Valor, Estado)
 
 app (Fun f) v e = f v e
@@ -233,3 +256,6 @@ instance Show Valor where
    show (Num x) = show x
    show Erro = "Erro"
    show (Fun f) = "Função"
+   show (Bool b) = show b
+   show Null = "null"
+   show (Obj campos) = "Obj{" ++ show campos ++ "}"
