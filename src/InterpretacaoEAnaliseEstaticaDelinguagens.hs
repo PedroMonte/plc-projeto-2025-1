@@ -134,24 +134,24 @@ aplica _ _ = Excecao
 -- anterior). Representamos, por simplicidade, soma como um termo específico da
 -- linguagem.
 
--- Termos da Linguagem aumentada
-data Termo = Var Id
-           | Lit Numero
-           | Som Termo Termo
-           | Mul Termo Termo
-           | Lam Id Termo
-           | Apl Termo Termo
-           | Atr Id Termo
-           | Seq Termo Termo
-           | If Termo Termo Termo
-           | While Termo Termo
-           | For Id Termo Termo Termo
-           | Def Id Termo
-           | This
-           | New Id
-           | InstanceOf Termo Id
-           | Call Termo Id [Termo]
-deriving (Show, Eq)
+-- Termos da Linguagem aumentada (Sintaxe)
+data Termo = Var Id -- Variável e string
+           | Lit Numero -- Literal (valor numérico)
+           | Som Termo Termo -- Soma de 2 termos
+           | Mul Termo Termo -- (novo) O mesmo que soma, mas pra multiplicação
+           | Lam Id Termo -- Função lambda
+           | Apl Termo Termo -- Aplica função f a argumento
+           | Atr Id Termo -- Atribui o resultado de termo à variável id
+           | Seq Termo Termo -- Sequenciamento de termos
+           | If Termo Termo Termo -- (novo) If condição then termo1 else termo2
+           | While Termo Termo -- (novo) While condição corpo
+           | For Id Termo Termo Termo -- (novo) For, id varia de início ao fim e corpo
+           | Def Id Termo -- (novo) Define função com id e termo
+           | This -- (novo) Só porque referencia o objeto atual
+           | New Id -- (novo) Cria nova instãncia de uma classe Id
+           | InstanceOf Termo Id -- (novo) Verifica se termo faz parte da classe Id
+           | Call Termo Id [Termo] -- (novo) Chamada de método (Id) de um objeto (termo) com argumentos ([termo])
+deriving (Show, Eq) -- Show para imprimir e eq para comparar
 
 -- A aplicação "(lambda x . + x 2) 3" seria
 termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
@@ -180,13 +180,13 @@ sq3 = (Seq (Atr "y" (Som (Atr "z" (Lit 5)) (Var "z"))) termo3)
 -- e retornar seu resultado. É preciso receber também o estado atual,
 -- e retornar o novo estado modificado pela execução da função.
 
+-- O que significam/produzem quando são avaliados (Semântica)
 data Valor = Num Double
-           | Fun (Valor -> Estado -> (Valor,Estado))
-           | Erro
+           | Fun (Valor -> Estado -> (Valor,Estado)) -- Recebe argumento e estado e retorna novos
+           | Erro 
            | Bool Bool
-           | Obj [(Id, Valor)]
+           | Obj [(Id, Valor)] -- Objeto com atributos (nome e conteúdo)
            | Null
-           | Erro           
 
 type Estado = [(Id,Valor)]
 
@@ -252,10 +252,11 @@ at t = int [] t []
 -- Se soma não fosse um termo específico da linguagem:
 -- at t = int [("+",Fun (\x -> \e -> (Fun (\y -> \e2 -> (somaVal x y,e2),e)))] t []
 
+-- Como serão convertidos quando forem impressos
 instance Show Valor where
    show (Num x) = show x
    show Erro = "Erro"
    show (Fun f) = "Função"
    show (Bool b) = show b
    show Null = "null"
-   show (Obj campos) = "Obj{" ++ show campos ++ "}"
+   show (Obj campos) = "Obj{" ++ show campos ++ "}" -- Mostramos lista com id e valor
