@@ -31,3 +31,6 @@ main = do
     let (val2, _) = at (InstanceOf (New "Conta") "Poupanca")
     putStrLn ("InstanceOf (Poupanca, Poupanca): " ++ show val1)  -- deve responder Bool True
     putStrLn ("InstanceOf (Conta, Poupanca): " ++ show val2)     -- deve responder Bool False
+    let (multResult, _) = at (Mul (InterpretacaoEAnaliseEstaticaDelinguagens.Lit 3) --pra nao dar ambiguidade
+                              (InterpretacaoEAnaliseEstaticaDelinguagens.Lit 4))
+    putStrLn (show multResult)

@@ -137,6 +137,7 @@ aplica _ _ = Excecao
 data Termo = Var Id
            | Lit Numero
            | Som Termo Termo
+           | Mul Termo Termo      -- ADICIONADO
            | Lam Id Termo
            | Apl Termo Termo
            | Atr Id Termo
@@ -196,6 +197,11 @@ int a (Som t u) e = (somaVal v1 v2, e2)
 
 int a (Lam x t) e = (Fun (\v -> int ((x,v):a) t), e)
 
+int a (Mul t u) e = (multVal v1 v2, e2)
+                    where (v1,e1) = int a t e
+                          (v2,e2) = int a u e1
+
+
 int a (Apl t u) e = app v1 v2 e2
                     where (v1,e1) = int a t e
                           (v2,e2) = int a u e1
@@ -229,6 +235,11 @@ search i ((j,v):l) = if i == j then v else search i l
 
 somaVal (Num x) (Num y) = Num (x+y)
 somaVal _ _ = Erro
+
+-- multVal :: Valor -> Valor -> Valor
+multVal (Num x) (Num y) = Num (x * y)
+multVal _ _ = Erro
+
 
 -- app :: Valor -> Valor -> Estado -> (Valor, Estado)
 
