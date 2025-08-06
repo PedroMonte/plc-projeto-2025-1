@@ -136,6 +136,7 @@ aplica _ _ = Excecao
 
 data Termo = Var Id
            | Lit Numero
+           | LitBool Bool   -- ADICIONADO
            | Som Termo Termo
            | Mul Termo Termo      -- ADICIONADO
            | Lam Id Termo
@@ -145,6 +146,8 @@ data Termo = Var Id
            | While Termo Termo    -- ADICIONADO
            | New Id               -- ADICIONADO
            | InstanceOf Termo Id  -- ADICIONADO
+           | If Termo Termo Termo  -- ADICIONADO
+
 
 -- A aplicação "(lambda x . + x 2) 3" seria
 termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
@@ -191,6 +194,9 @@ int a (Var x) e = (search x (a ++ e), e)
 
 int a (Lit n) e = (Num n, e)
 
+int a (LitBool b) e = (Bool b, e)
+
+
 int a (Som t u) e = (somaVal v1 v2, e2)
                     where (v1,e1) = int a t e
                           (v2,e2) = int a u e1
@@ -224,6 +230,13 @@ int a (InstanceOf t nomeClasse) e =               -- ADICIONADO
     case int a t e of
         (Obj _ classeObj, e') -> (Bool (classeObj == nomeClasse), e')
         (_, e')               -> (Erro, e')
+
+int a (If cond t1 t2) e =
+    case int a cond e of
+        (Bool True, e1)  -> int a t1 e1
+        (Bool False, e1) -> int a t2 e1
+        (_, e1)          -> (Erro, e1)
+
 
 
 -- search :: Eq a => a -> [(a, Valor)] -> Valor
@@ -266,3 +279,23 @@ instance Show Valor where
    show (Obj _ nome) = "objeto:" ++ nome  -- ADICIONADO
    show Erro = "Erro"
    show (Fun _) = "Função"
+
+
+-- Termos usados nos testes de if
+termoIf1 = If (LitBool True) (Lit 10) (Lit 20)   -- Esperado: 10
+termoIf5 = If (InstanceOf (New "Pessoa") "Pessoa") (Lit 1) (Lit 0)  -- Esperado: 1
+termoIf7 = If (Lit 3) (Lit 1) (Lit 2) -- Esperado: Erro (condição não booleana)
+
+-- Função para imprimir os testes do termo If
+testarIf :: IO ()
+testarIf = do
+    putStrLn "Testes do termo If: "
+
+    let (v1, _) = at termoIf1
+    putStrLn ("If True then 10 else 20 = " ++ show v1)  -- Esperado: 10
+
+    let (v5, _) = at termoIf5
+    putStrLn ("If InstanceOf Pessoa Pessoa then 1 else 0 = " ++ show v5)  -- Esperado: 1
+
+    let (v7, _) = at termoIf7
+    putStrLn ("If 3 then 1 else 2 = " ++ show v7)  -- Esperado: Erro

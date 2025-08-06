@@ -34,3 +34,4 @@ main = do
     let (multResult, _) = at (Mul (InterpretacaoEAnaliseEstaticaDelinguagens.Lit 3) --pra nao dar ambiguidade
                               (InterpretacaoEAnaliseEstaticaDelinguagens.Lit 4))
     putStrLn (show multResult)
+    testarIf
