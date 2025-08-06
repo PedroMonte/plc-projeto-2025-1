@@ -106,11 +106,11 @@ aplica _ _ = Excecao
 --
 -- v1 = intTermo as (Aplicacao (Identifier "+") (Identifier "x"))
 --    = aplica v11 v12
---    = aplica (Funcao (\x -> (Funcao (\y -> somaValorFun x y))))) Excecao
+--    = aplica (Funcao (\x -> (Funcao (\y -> somaValorFun x y)))) Excecao
 --    = Funcao (\y -> somaValorFun Excecao y)
 --
 -- v11 = intTermo as Identifier "+" =
--- Funcao (\x -> (Funcao (\y -> somaValorFun x y))))
+-- Funcao (\x -> (Funcao (\y -> somaValorFun x y)))
 --
 -- v12 = intTermo as Identifier "x" =
 -- getValor "x" as =
@@ -141,6 +141,8 @@ data Termo = Var Id
            | Apl Termo Termo
            | Atr Id Termo
            | Seq Termo Termo
+           | While Termo Termo    -- ADICIONADO
+           | New Id               -- ADICIONADO
 
 -- A aplicação "(lambda x . + x 2) 3" seria
 termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
@@ -171,6 +173,9 @@ sq3 = (Seq (Atr "y" (Som (Atr "z" (Lit 5)) (Var "z"))) termo3)
 
 data Valor = Num Double
            | Fun (Valor -> Estado -> (Valor,Estado))
+           | Bool Bool            -- ADICIONADO
+           | Null                 -- ADICIONADO
+           | Obj [(Id,Valor)]    -- ADICIONADO
            | Erro
 
 type Estado = [(Id,Valor)]
@@ -200,6 +205,14 @@ int a (Atr x t) e = (v1, wr (x,v1) e1)
 int a (Seq t u) e = int a u e1
                     where (_,e1) = int a t e
 
+int a (While cond corpo) e =                      -- ADICIONADO
+       case int a cond e of
+            (Bool True, e1)  -> int a (Seq corpo (While cond corpo)) e1
+            (Bool False, e1) -> (Null, e1)
+            (_, e1)          -> (Erro, e1)
+
+int a (New idClasse) e = (Obj [], e)              -- ADICIONADO
+
 
 -- search :: Eq a => a -> [(a, Valor)] -> Valor
 
@@ -219,7 +232,7 @@ app _ _ e = (Erro, e)
 -- wr :: Eq a => (a, t) -> [(a, t)] -> [(a, t)]
 
 wr (i,v) [] = [(i,v)]
-wr (i,v) ((j,u):l) = if (i == j) then (j,v):l else [(j,u)] ++ (wr (i,v) l)
+wr (i,v) ((j,u):l) = if (i == j) then (j,v):l else (j,u):(wr (i,v) l)
 
 
 -- Chamando o interpretador com o ambiente e a memória vazios.
@@ -231,5 +244,8 @@ at t = int [] t []
 
 instance Show Valor where
    show (Num x) = show x
+   show (Bool b) = show b            -- ADICIONADO
+   show Null = "null"                -- ADICIONADO
+   show (Obj _) = "objeto"           -- ADICIONADO
    show Erro = "Erro"
-   show (Fun f) = "Função"
+   show (Fun _) = "Função"
