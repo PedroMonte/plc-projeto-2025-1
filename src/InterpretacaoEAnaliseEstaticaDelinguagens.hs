@@ -18,8 +18,16 @@ data TermoLinFun = Identifier Id
                  | Literal Numero
                  | Lambda Id TermoLinFun
                  | Aplicacao TermoLinFun TermoLinFun
-data Definicao = Def Id TermoLinFun
-type Programa = [Definicao]
+
+data Modificador = Public 
+                 | Private
+                 | Static
+                 -- ...
+
+data Declaracao = Def Id Termo
+                | ClasseDef [Modificador] Id [Declaracao]
+
+type Programa = [Declaracao]
 
 
 -- Aplicacao String TermoLinFun TermoLinFun
@@ -57,6 +65,7 @@ instance Show ValorFun where
 -- A função que implementa o interpretador dos termos precisa receber como parâmetro um
 -- ambiente, contendo as funções pré-definidas, e as definidas pelo programador.
 
+-- 
 type Ambiente = [(Id,ValorFun)]
 
 -- No nosso caso, o ambiente teria apenas a definição de "+".
@@ -134,24 +143,23 @@ aplica _ _ = Excecao
 -- anterior). Representamos, por simplicidade, soma como um termo específico da
 -- linguagem.
 
--- Termos da Linguagem aumentada (Sintaxe)
-data Termo = Var Id -- Variável e string
-           | Lit Numero -- Literal (valor numérico)
-           | Som Termo Termo -- Soma de 2 termos
-           | Mul Termo Termo -- (novo) O mesmo que soma, mas pra multiplicação
-           | Lam Id Termo -- Função lambda
-           | Apl Termo Termo -- Aplica função f a argumento
-           | Atr Id Termo -- Atribui o resultado de termo à variável id
-           | Seq Termo Termo -- Sequenciamento de termos
-           | If Termo Termo Termo -- (novo) If condição then termo1 else termo2
-           | While Termo Termo -- (novo) While condição corpo
-           | For Id Termo Termo Termo -- (novo) For, id varia de início ao fim e corpo
-           | Def Id Termo -- (novo) Define função com id e termo
-           | This -- (novo) Só porque referencia o objeto atual
-           | New Id -- (novo) Cria nova instãncia de uma classe Id
-           | InstanceOf Termo Id -- (novo) Verifica se termo faz parte da classe Id
-           | Call Termo Id [Termo] -- (novo) Chamada de método (Id) de um objeto (termo) com argumentos ([termo])
-deriving (Show, Eq) -- Show para imprimir e eq para comparar
+data Termo = Var Id
+           | Lit Numero
+           | Som Termo Termo
+           | Mul Termo Termo
+           | Lam Id Termo
+           | Apl Termo Termo
+           | Atr Termo Termo
+           | FieldAccess Termo Id
+           | Seq Termo Termo
+           | If Termo Termo Termo
+           | While Termo Termo
+           | For Id Termo Termo Termo
+           | This
+           | New Id
+           | InstanceOf Termo Id
+           | Call Termo Id [Termo]
+deriving (Show, Eq)
 
 -- A aplicação "(lambda x . + x 2) 3" seria
 termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
@@ -185,11 +193,16 @@ data Valor = Num Double
            | Fun (Valor -> Estado -> (Valor,Estado)) -- Recebe argumento e estado e retorna novos
            | Erro 
            | Bool Bool
-           | Obj [(Id, Valor)] -- Objeto com atributos (nome e conteúdo)
+           | Ref Endereco
            | Null
 
 type Estado = [(Id,Valor)]
 
+data Objeto = (Id, Estado)
+
+type Endereco = Int
+
+type Heap = [(Endereco, Objeto)]
 
 -- int :: [(Id, Valor)] -> Termo -> [(Id, Valor)] -> (Valor, [(Id, Valor)])
 -- int :: Ambiente -> Termo -> Estado -> (Valor, Estado)
