@@ -143,6 +143,7 @@ data Termo = Var Id
            | Seq Termo Termo
            | While Termo Termo    -- ADICIONADO
            | New Id               -- ADICIONADO
+           | InstanceOf Termo Id  -- ADICIONADO
 
 -- A aplicação "(lambda x . + x 2) 3" seria
 termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
@@ -175,7 +176,7 @@ data Valor = Num Double
            | Fun (Valor -> Estado -> (Valor,Estado))
            | Bool Bool            -- ADICIONADO
            | Null                 -- ADICIONADO
-           | Obj [(Id,Valor)]    -- ADICIONADO
+           | Obj [(Id,Valor)] String -- ADICIONADO (agora com nome da classe)
            | Erro
 
 type Estado = [(Id,Valor)]
@@ -211,7 +212,12 @@ int a (While cond corpo) e =                      -- ADICIONADO
             (Bool False, e1) -> (Null, e1)
             (_, e1)          -> (Erro, e1)
 
-int a (New idClasse) e = (Obj [], e)              -- ADICIONADO
+int a (New idClasse) e = (Obj [] idClasse, e)     -- ADICIONADO
+
+int a (InstanceOf t nomeClasse) e =               -- ADICIONADO
+    case int a t e of
+        (Obj _ classeObj, e') -> (Bool (classeObj == nomeClasse), e')
+        (_, e')               -> (Erro, e')
 
 
 -- search :: Eq a => a -> [(a, Valor)] -> Valor
@@ -246,6 +252,6 @@ instance Show Valor where
    show (Num x) = show x
    show (Bool b) = show b            -- ADICIONADO
    show Null = "null"                -- ADICIONADO
-   show (Obj _) = "objeto"           -- ADICIONADO
+   show (Obj _ nome) = "objeto:" ++ nome  -- ADICIONADO
    show Erro = "Erro"
    show (Fun _) = "Função"
