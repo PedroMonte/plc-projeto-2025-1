@@ -147,6 +147,10 @@ data Termo = Var Id
            | New Id               -- ADICIONADO
            | InstanceOf Termo Id  -- ADICIONADO
            | If Termo Termo Termo  -- ADICIONADO
+           | For Termo Termo Termo Termo -- Adicionado: Feature - <Chgs3> For
+           | Menor Termo Termo    -- Adicionado: Feature - <Chgs3> Menor (Auxiliar para o For)
+           | MenorIgual Termo Termo -- Adicionado: Feature - <Chgs3> MenorIgual (Auxiliar para o For)
+           | Igual Termo Termo    -- Adicionado: Feature - <Chgs3> Igual (Auxiliar para o For)
 
 
 -- A aplicação "(lambda x . + x 2) 3" seria
@@ -237,6 +241,44 @@ int a (If cond t1 t2) e =
         (Bool False, e1) -> int a t2 e1
         (_, e1)          -> (Erro, e1)
 
+-- Implementação do For, que é uma estrutura de repetição com inicialização,
+-- condição e incremento.
+
+int a (For init cond incr corpo) e = 
+    let (_, e1) = int a init e        -- inicialização  
+        loop e' = case int a cond e' of  -- função do loop
+                    (Bool True, e'') ->
+                        let
+                            (_, e''') = int a corpo e''  -- executa o corpo
+                            (_, e'''') = int a incr e''' -- executa o incremento
+                        in loop e''''
+                    (Bool False, e'') -> (Null, e') -- finaliza o loop se for falso
+                    (_, e'') -> (Erro, e') -- condição inválida
+    in loop e1
+
+-- Implementação dos operadores de comparação
+-- Menor, MenorIgual e Igual, que são usados no For
+int a (Menor t1 t2) e =
+    case (v1, v2) of
+        (Num n1, Num n2) -> (Bool (n1 < n2), e2)
+        _ -> (Erro, e2)
+    where (v1, e1) = int a t1 e
+          (v2, e2) = int a t2 e1
+
+int a (MenorIgual t1 t2) e =
+    case (v1, v2) of
+        (Num n1, Num n2) -> (Bool (n1 <= n2), e2)
+        _ -> (Erro, e2)
+    where (v1, e1) = int a t1 e
+          (v2, e2) = int a t2 e1
+
+int a (Igual t1 t2) e =
+    case (v1, v2) of
+        (Num n1, Num n2) -> (Bool (n1 == n2), e2)
+        (Bool b1, Bool b2) -> (Bool (b1 == b2), e2)
+        _ -> (Erro, e2)
+    where (v1, e1) = int a t1 e
+          (v2, e2) = int a t2 e1
 
 
 -- search :: Eq a => a -> [(a, Valor)] -> Valor
@@ -299,3 +341,25 @@ testarIf = do
 
     let (v7, _) = at termoIf7
     putStrLn ("If 3 then 1 else 2 = " ++ show v7)  -- Esperado: Erro
+
+-- Testes para o For
+exemploFor :: Termo
+exemploFor = For (Atr "i" (Lit 1))           -- init: i = 1
+                       (MenorIgual (Var "i") (Lit 10))  -- cond: i <= 10
+                       (Atr "i" (Som (Var "i") (Lit 1)))  -- incr: i = i + 1
+                       (Atr "soma" (Som (Var "soma") (Var "i")))  -- corpo: soma += i
+
+testarFor :: IO ()
+testarFor = do
+    putStrLn "Testando loop For:"   
+
+    let estadoInicial = [("soma", Num 0)] -- Estado inicial com a soma = 0
+
+    let (resultado, estadoFinal) = int [] exemploFor estadoInicial -- Executa o For
+    
+    putStrLn $ "Resultado do For: " ++ show resultado
+    
+    case search "soma" estadoFinal of
+        Num n -> putStrLn $ "Soma final: " ++ show n
+        _ -> putStrLn "Erro ao obter o valor da soma"
+
