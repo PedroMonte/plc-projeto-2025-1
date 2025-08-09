@@ -155,9 +155,12 @@ data Termo = Var Id
            | New Id               -- ADICIONADO
            | InstanceOf Termo Id  -- ADICIONADO
            | If Termo Termo Termo  -- ADICIONADO
-           | For Id Termo Termo Termo
            | This
            | Call Termo Id [Termo]
+           | For Termo Termo Termo Termo -- Adicionado: Feature - <Chgs3> For
+           | Menor Termo Termo    -- Adicionado: Feature - <Chgs3> Menor (Auxiliar para o For)
+           | MenorIgual Termo Termo -- Adicionado: Feature - <Chgs3> MenorIgual (Auxiliar para o For)
+           | Igual Termo Termo    -- Adicionado: Feature - <Chgs3> Igual (Auxiliar para o For)
 
 -- -- A aplicação "(lambda x . + x 2) 3" seria
 -- termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
@@ -350,7 +353,44 @@ int a (FieldAccess objeto campo) e h =
                         Nothing -> (Erro, e1, h1)
             _ -> (Erro, e1, h1)
 
+-- Implementação do For, que é uma estrutura de repetição com inicialização,
+-- condição e incremento.
 
+int a (For init cond incr corpo) e h = 
+    let (_, e1, h1) = int a init e h        -- inicialização  
+        loop e' h' = case int a cond e' h' of  -- função do loop
+                    (Bool True, e'', h'') ->
+                        let
+                            (_, e''', h''') = int a corpo e'' h''  -- executa o corpo
+                            (_, e'''', h'''') = int a incr e''' h''' -- executa o incremento
+                        in loop e'''' h''''
+                    (Bool False, e'', h'') -> (Null, e'', h'') -- finaliza o loop
+                    (_, e'', h'') -> (Erro, e'', h'') -- condição inválida
+    in loop e1 h1
+
+-- Implementação dos operadores de comparação
+-- Menor, MenorIgual e Igual, que são usados no For
+int a (Menor t1 t2) e h =
+    case (v1, v2) of
+        (Num n1, Num n2) -> (Bool (n1 < n2), e2, h2)
+        _ -> (Erro, e2, h2)
+    where (v1, e1, h1) = int a t1 e h
+          (v2, e2, h2) = int a t2 e1 h1
+
+int a (MenorIgual t1 t2) e h =
+    case (v1, v2) of
+        (Num n1, Num n2) -> (Bool (n1 <= n2), e2, h2)
+        _ -> (Erro, e2, h2)
+    where (v1, e1, h1) = int a t1 e h
+          (v2, e2, h2) = int a t2 e1 h1
+
+int a (Igual t1 t2) e h =
+    case (v1, v2) of
+        (Num n1, Num n2) -> (Bool (n1 == n2), e2, h2)
+        (Bool b1, Bool b2) -> (Bool (b1 == b2), e2, h2)
+        _ -> (Erro, e2, h2)
+    where (v1, e1, h1) = int a t1 e h
+          (v2, e2, h2) = int a t2 e1 h1
 
 -- search :: Eq a => a -> [(a, Valor)] -> Valor
 
@@ -412,16 +452,42 @@ termoIf1 = If (LitBool True) (Lit 10) (Lit 20)   -- Esperado: 10
 termoIf5 = If (InstanceOf (New "Pessoa") "Pessoa") (Lit 1) (Lit 0)  -- Esperado: 1
 termoIf7 = If (Lit 3) (Lit 1) (Lit 2) -- Esperado: Erro (condição não booleana)
 
--- Função para imprimir os testes do termo If
+programaComClasse :: [Declaracao]
+programaComClasse = [ClasseDecl "Pessoa" [Campo "nome", Campo "idade"]]
+
 testarIf :: IO ()
 testarIf = do
     putStrLn "Testes do termo If: "
 
-    let (v1, _, _) = at termoIf1
-    putStrLn ("If True then 10 else 20 = " ++ show v1)  -- Esperado: 10
+    let (v1, _, _) = at termoIf1  -- Este funciona sem ambiente
+    putStrLn ("If True then 10 else 20 = " ++ show v1)
 
-    let (v5, _, _) = at termoIf5
-    putStrLn ("If InstanceOf Pessoa Pessoa then 1 else 0 = " ++ show v5)  -- Esperado: 1
+    -- Este precisa do ambiente com classe definida
+    let (v5, _, _) = rodarPrograma programaComClasse termoIf5
+    putStrLn ("If InstanceOf Pessoa Pessoa then 1 else 0 = " ++ show v5)
 
-    let (v7, _, _) = at termoIf7
-    putStrLn ("If 3 then 1 else 2 = " ++ show v7)  -- Esperado: Erro
+    let (v7, _, _) = at termoIf7  -- Teste de erro funciona sem ambiente
+    putStrLn ("If 3 then 1 else 2 = " ++ show v7)
+
+-- Testes para o For
+exemploFor :: Termo
+exemploFor = For (Atr (Var "i") (Lit 1))           -- init: i = 1
+                       (MenorIgual (Var "i") (Lit 10))  -- cond: i <= 10
+                       (Atr (Var "i") (Som (Var "i") (Lit 1)))  -- incr: i = i + 1
+                       (Atr (Var "soma") (Som (Var "soma") (Var "i")))  -- corpo: soma += i
+
+testarFor :: IO ()
+testarFor = do
+    putStrLn "Testando loop For:"   
+
+    let estadoInicial = [("soma", Num 0)] -- Estado inicial com a soma = 0
+    let heapInicial = (0, [])             -- Heap inicial vazio
+
+    let (resultado, estadoFinal, heapFinal) = int [] exemploFor estadoInicial heapInicial -- Executa o For
+    
+    putStrLn $ "Resultado do For: " ++ show resultado
+    
+    case search "soma" estadoFinal of
+        Num n -> putStrLn $ "Soma final: " ++ show n
+        _ -> putStrLn "Erro ao obter o valor da soma"
+
