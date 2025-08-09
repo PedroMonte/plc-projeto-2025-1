@@ -18,8 +18,15 @@ data TermoLinFun = Identifier Id
                  | Literal Numero
                  | Lambda Id TermoLinFun
                  | Aplicacao TermoLinFun TermoLinFun
-data Definicao = Def Id TermoLinFun
-type Programa = [Definicao]
+
+data Membro = Campo Id
+            | MetodoDecl Id [Id] Termo
+            | Construtor [Id] Termo
+
+data Declaracao = Def Id Termo
+                | ClasseDecl Id [Membro]
+
+type Programa = [Declaracao]
 
 
 -- Aplicacao String TermoLinFun TermoLinFun
@@ -35,10 +42,10 @@ type Programa = [Definicao]
 --
 -- seria representado como
 
-def1 = Def "inc" (Lambda "x" (Aplicacao (Aplicacao (Identifier "+") (Identifier "x")) (Literal 1)))
-def2 = Def "v" (Aplicacao (Aplicacao (Identifier "+") (Literal 3)) (Literal 2))
-def3 = Def "resultado" (Aplicacao (Identifier "inc") (Identifier "v"))
-prog1 = [def1,def2,def3]
+-- def1 = Def "inc" (Lambda "x" (Aplicacao (Aplicacao (Identifier "+") (Identifier "x")) (Literal 1)))
+-- def2 = Def "v" (Aplicacao (Aplicacao (Identifier "+") (Literal 3)) (Literal 2))
+-- def3 = Def "resultado" (Aplicacao (Identifier "inc") (Identifier "v"))
+-- prog1 = [def1,def2,def3]
 
 
 -- O resultado da interpretação seria um dos seguintes, já que a
@@ -57,7 +64,7 @@ instance Show ValorFun where
 -- A função que implementa o interpretador dos termos precisa receber como parâmetro um
 -- ambiente, contendo as funções pré-definidas, e as definidas pelo programador.
 
-type Ambiente = [(Id,ValorFun)]
+type Ambiente = [(Id,Valor)]
 
 -- No nosso caso, o ambiente teria apenas a definição de "+".
 
@@ -71,23 +78,23 @@ somaValorFun _ _ = Excecao
 -- para programas. A de termos simplesmente lê o ambiente. A de programa
 -- propaga alterações no ambiente, para acumular as funções definidas.
 
-intTermo a (Identifier i) = getValor i a
-intTermo a (Literal l) = Numero l
-intTermo a (Lambda i t) = Funcao (\v -> intTermo ((i,v):a) t)
-intTermo a (Aplicacao t1 t2) = aplica v1 v2
-                                where v1 = intTermo a t1
-                                      v2 = intTermo a t2
+-- intTermo a (Identifier i) = getValor i a
+-- intTermo a (Literal l) = Numero l
+-- intTermo a (Lambda i t) = Funcao (\v -> intTermo ((i,v):a) t)
+-- intTermo a (Aplicacao t1 t2) = aplica v1 v2
+--                                 where v1 = intTermo a t1
+--                                       v2 = intTermo a t2
 
-intPrograma a [] = Excecao
-intPrograma a [(Def i t)] = intTermo a t
-intPrograma a ((Def i t):ds) = intPrograma ((i,v):a) ds
-                               where v = intTermo a t
+-- intPrograma a [] = Excecao
+-- intPrograma a [(Def i t)] = intTermo a t
+-- intPrograma a ((Def i t):ds) = intPrograma ((i,v):a) ds
+--                                where v = intTermo a t
 
-getValor i [] = Excecao
-getValor i ((j,v):l) = if i == j then v else getValor i l
+-- getValor i [] = Excecao
+-- getValor i ((j,v):l) = if i == j then v else getValor i l
 
-aplica (Funcao f) v = f v
-aplica _ _ = Excecao
+-- aplica (Funcao f) v = f v
+-- aplica _ _ = Excecao
 
 
 -- Exemplo de reescrita
@@ -141,31 +148,34 @@ data Termo = Var Id
            | Mul Termo Termo      -- ADICIONADO
            | Lam Id Termo
            | Apl Termo Termo
-           | Atr Id Termo
+           | Atr Termo Termo -- Mod
+           | FieldAccess Termo Id
            | Seq Termo Termo
            | While Termo Termo    -- ADICIONADO
            | New Id               -- ADICIONADO
            | InstanceOf Termo Id  -- ADICIONADO
            | If Termo Termo Termo  -- ADICIONADO
+           | For Id Termo Termo Termo
+           | This
+           | Call Termo Id [Termo]
 
+-- -- A aplicação "(lambda x . + x 2) 3" seria
+-- termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
 
--- A aplicação "(lambda x . + x 2) 3" seria
-termo1 = (Apl (Lam "x" (Som (Var "x") (Lit 2))) (Lit 3))
+-- -- A aplicação "(lambda x . + x y) 3" seria
+-- termo2 = (Apl (Lam "x" (Som (Var "x") (Var "y"))) (Lit 3))
 
--- A aplicação "(lambda x . + x y) 3" seria
-termo2 = (Apl (Lam "x" (Som (Var "x") (Var "y"))) (Lit 3))
+-- -- A composição sequencial "y := (lambda x . + x y) 3 ; (lambda x . + x y) 3" seria
+-- termo3 = (Seq (Atr "y" termo2) termo2)
 
--- A composição sequencial "y := (lambda x . + x y) 3 ; (lambda x . + x y) 3" seria
-termo3 = (Seq (Atr "y" termo2) termo2)
+-- -- A composição sequencial "y := 3 ; (lambda x . + x y) 3" seria
+-- sq1 = (Seq (Atr "y" (Lit 3)) termo2)
 
--- A composição sequencial "y := 3 ; (lambda x . + x y) 3" seria
-sq1 = (Seq (Atr "y" (Lit 3)) termo2)
+-- -- A composição sequencial "y := 3 ; y := (lambda x . + x y) 3 ; (lambda x . + x y) 3" seria
+-- sq2 = (Seq (Atr "y" (Lit 3)) termo3)
 
--- A composição sequencial "y := 3 ; y := (lambda x . + x y) 3 ; (lambda x . + x y) 3" seria
-sq2 = (Seq (Atr "y" (Lit 3)) termo3)
-
--- A composição sequencial "y := (z := 5) + z ; y := (lambda x . + x y) 3 ; (lambda x . + x y) 3" seria
-sq3 = (Seq (Atr "y" (Som (Atr "z" (Lit 5)) (Var "z"))) termo3)
+-- -- A composição sequencial "y := (z := 5) + z ; y := (lambda x . + x y) 3 ; (lambda x . + x y) 3" seria
+-- sq3 = (Seq (Atr "y" (Som (Atr "z" (Lit 5)) (Var "z"))) termo3)
 
 
 
@@ -177,65 +187,168 @@ sq3 = (Seq (Atr "y" (Som (Atr "z" (Lit 5)) (Var "z"))) termo3)
 -- e retornar o novo estado modificado pela execução da função.
 
 data Valor = Num Double
-           | Fun (Valor -> Estado -> (Valor,Estado))
+           | Fun (Valor -> Estado -> Heap -> (Valor,Estado, Heap))
            | Bool Bool            -- ADICIONADO
            | Null                 -- ADICIONADO
-           | Obj [(Id,Valor)] String -- ADICIONADO (agora com nome da classe)
            | Erro
+           | Classe Id [Membro]  -- Adicionado
+           | Ref Endereco -- Adicionado
 
 type Estado = [(Id,Valor)]
 
+-- Objeto: nome da classe e conjunto de estados/atributos
+type Objeto = (Id, Estado)
+
+-- Endereço: endereco de memoria na heap
+type Endereco = Int
+
+-- Heap: proximo endereço livre e conjunto de referencias e objetos
+type Heap = (Endereco, [(Endereco, Objeto)])
+
+-- Programa + main
+rodarPrograma :: Programa -> Termo -> (Valor, Estado, Heap)
+rodarPrograma prog main =
+      let ambiente = criarAmbiente prog
+      in int ambiente main [] (0, [])
+
+criarAmbiente :: [Declaracao] -> Ambiente
+criarAmbiente decls = classes ++ definicoes
+  where
+    classes =
+      [ (nome, Classe nome membros)
+      | ClasseDecl nome membros <- decls
+      ]
+
+    definicoes = 
+      [ (nome, criarDef nome termo)
+      | Def nome termo <- decls
+      ]
+
+    criarDef nome (Lam param body) = 
+      Fun (\v e h -> int ((param,v):a0) body e h)
+    criarDef nome termo = 
+      Fun (\_ e h -> int a0 termo e h)
+    
+    a0 = classes ++ definicoes
 
 -- int :: [(Id, Valor)] -> Termo -> [(Id, Valor)] -> (Valor, [(Id, Valor)])
--- int :: Ambiente -> Termo -> Estado -> (Valor, Estado)
---
+int :: Ambiente -> Termo -> Estado -> Heap -> (Valor, Estado, Heap)
 
-int a (Var x) e = (search x (a ++ e), e)
+int a (Var x) e h = (search x (a ++ e), e, h)
 
-int a (Lit n) e = (Num n, e)
+int a (Lit n) e h = (Num n, e, h)
 
-int a (LitBool b) e = (Bool b, e)
+int a (LitBool b) e h = (Bool b, e, h)
 
+int a (Som t u) e h = (somaVal v1 v2, e2, h2)
+                    where (v1,e1,h1) = int a t e h
+                          (v2,e2,h2) = int a u e1 h1
 
-int a (Som t u) e = (somaVal v1 v2, e2)
-                    where (v1,e1) = int a t e
-                          (v2,e2) = int a u e1
+int a (Lam x t) e h = (Fun (\v e' h' -> int ((x,v):a) t e' h'), e, h)
 
-int a (Lam x t) e = (Fun (\v -> int ((x,v):a) t), e)
+int a (Mul t u) e h = (multVal v1 v2, e2, h2)
+                    where (v1,e1,h1) = int a t e h
+                          (v2,e2,h2) = int a u e1 h1
 
-int a (Mul t u) e = (multVal v1 v2, e2)
-                    where (v1,e1) = int a t e
-                          (v2,e2) = int a u e1
+int a (Apl t u) e h = app v1 v2 e2 h2
+                    where (v1,e1,h1) = int a t e h
+                          (v2,e2,h2) = int a u e1 h1
 
+int a (Atr left right) e h =
+      -- avaliando o lado esquerdo
+      case left of
+            -- variavel normal
+            Var x -> 
+                  let 
+                        (v, e1, h1) = int a right e h
+                        e2 = wr (x, v) e1
+                  in 
+                        (v, e2, h1)
+            -- atributo de objeto
+            FieldAccess objeto campo ->
+                  -- obtem referencia
+                  let 
+                        (vObj, e1, h1@(prox, objs)) = int a objeto e h
+                  in 
+                        case vObj of
+                              -- alterando referencia 
+                              Ref endereco ->
+                                    -- obtem valor atributido (v)
+                                    let 
+                                          (v, e2, h2@(prox1, objs1)) = int a right e1 h1
 
-int a (Apl t u) e = app v1 v2 e2
-                    where (v1,e1) = int a t e
-                          (v2,e2) = int a u e1
+                                          -- atualiza valor do campo
+                                          objs2 = map (\(end, obj) -> if end==endereco
+                                                                  then (end, atualizaCampo campo v obj)
+                                                                  else (end, obj)
+                                                      ) objs1
+                                          
+                                          -- atualiza heap
+                                          h3 = (prox1, objs2)
+                                    in 
+                                          (v, e2, h3)
 
-int a (Atr x t) e = (v1, wr (x,v1) e1)
-                    where (v1,e1) = int a t e
+                              -- erro (nao eh referencia)
+                              _ -> (Erro, e1, h1)
+            _ -> (Erro, e, h)
 
-int a (Seq t u) e = int a u e1
-                    where (_,e1) = int a t e
+int a (Seq t u) e h = int a u e1 h1
+                    where (_,e1,h1) = int a t e h
 
-int a (While cond corpo) e =                      -- ADICIONADO
-       case int a cond e of
-            (Bool True, e1)  -> int a (Seq corpo (While cond corpo)) e1
-            (Bool False, e1) -> (Null, e1)
-            (_, e1)          -> (Erro, e1)
+int a (While cond corpo) e h =                      -- ADICIONADO
+       case int a cond e h of
+            (Bool True, e1, h1)  -> int a (Seq corpo (While cond corpo)) e1 h1
+            (Bool False, e1, h1) -> (Null, e1, h1)
+            (_, e1, h1)          -> (Erro, e1, h1)
 
-int a (New idClasse) e = (Obj [] idClasse, e)     -- ADICIONADO
+int a (New nomeClasse) e (proximoEndereco, objetos) =
+      -- procura def classe no ambiente
+      case lookup nomeClasse a of
+            -- encontra
+            Just (Classe _ membros) ->
+                  let
+                        -- inicializa campos
+                        camposIniciais = [(nome, Null) | Campo nome <- membros]
+                        -- cria objeto
+                        objeto = (nomeClasse, camposIniciais)
+                        -- incorpora objeto na heap
+                        objs = (proximoEndereco, objeto) : objetos
+                        -- atualiza heap
+                        heap = (proximoEndereco+1, objs)
+                  in 
+                        (Ref proximoEndereco, e, heap)
+            -- erro
+            Nothing -> (Erro, e, (proximoEndereco, objetos))
 
-int a (InstanceOf t nomeClasse) e =               -- ADICIONADO
-    case int a t e of
-        (Obj _ classeObj, e') -> (Bool (classeObj == nomeClasse), e')
-        (_, e')               -> (Erro, e')
+int a (InstanceOf objeto nomeClasse) e h =               -- ADICIONADO
+    let 
+      -- busca referencia a objeto
+      (resultado, e1, h1@(proximoEndereco, objetos)) = int a objeto e h
+    in case resultado of
+            Ref endereco -> 
+                  case lookup endereco objetos of
+                        -- compara nome da classe
+                        Just (nomeClasseEncontrada, _) -> (Bool (nomeClasse == nomeClasseEncontrada), e1, h1)
+                        Nothing -> (Erro, e1, h1)
+            _ -> (Erro, e1, h1)
 
-int a (If cond t1 t2) e =
-    case int a cond e of
-        (Bool True, e1)  -> int a t1 e1
-        (Bool False, e1) -> int a t2 e1
-        (_, e1)          -> (Erro, e1)
+int a (If cond t1 t2) e h =
+    case int a cond e h of
+        (Bool True, e1, h)  -> int a t1 e1 h
+        (Bool False, e1, h) -> int a t2 e1 h
+        (_, e1, h)          -> (Erro, e1, h)
+
+int a (FieldAccess objeto campo) e h =
+      let (vObj, e1, h1@(prox, objs)) = int a objeto e h
+      in case vObj of
+            Ref endereco ->
+                  case lookup endereco objs of
+                        Just (_, campos) ->
+                              case lookup campo campos of
+                                    Just valorCampo -> (valorCampo, e1, h1)
+                                    Nothing -> (Erro, e1, h1)
+                        Nothing -> (Erro, e1, h1)
+            _ -> (Erro, e1, h1)
 
 
 
@@ -254,20 +367,32 @@ multVal (Num x) (Num y) = Num (x * y)
 multVal _ _ = Erro
 
 
--- app :: Valor -> Valor -> Estado -> (Valor, Estado)
+-- app :: Valor -> Valor -> Estado -> Heap -> (Valor,Estado,Heap)
 
-app (Fun f) v e = f v e
-app _ _ e = (Erro, e)
+app (Fun f) v e h = f v e h
+app _ _ e h = (Erro, e, h)
 
 -- wr :: Eq a => (a, t) -> [(a, t)] -> [(a, t)]
 
 wr (i,v) [] = [(i,v)]
 wr (i,v) ((j,u):l) = if (i == j) then (j,v):l else (j,u):(wr (i,v) l)
 
+-- atualizaCampo :: Id -> Valor -> Objeto -> Objeto
+
+atualizaCampo campoAlvo novoValor (nomeObj, campos) = 
+      -- mapeia os pares de nome e valor dos campos
+      (nomeObj, map (\(nomeCampo,valorCampo) -> 
+            -- campo desejado
+            if nomeCampo==campoAlvo 
+                  -- troca valor
+                  then (nomeCampo,novoValor) 
+                  -- mantem
+                  else (nomeCampo,valorCampo)) campos)
+
 
 -- Chamando o interpretador com o ambiente e a memória vazios.
 
-at t = int [] t []
+at t = int [] t [] (0, [])
 
 -- Se soma não fosse um termo específico da linguagem:
 -- at t = int [("+",Fun (\x -> \e -> (Fun (\y -> \e2 -> (somaVal x y,e2),e)))] t []
@@ -276,9 +401,10 @@ instance Show Valor where
    show (Num x) = show x
    show (Bool b) = show b            -- ADICIONADO
    show Null = "null"                -- ADICIONADO
-   show (Obj _ nome) = "objeto:" ++ nome  -- ADICIONADO
+   show (Ref e) = show e  -- Mod
    show Erro = "Erro"
    show (Fun _) = "Função"
+   show (Classe nome _) = "<classe " ++ nome ++ ">"
 
 
 -- Termos usados nos testes de if
@@ -291,11 +417,11 @@ testarIf :: IO ()
 testarIf = do
     putStrLn "Testes do termo If: "
 
-    let (v1, _) = at termoIf1
+    let (v1, _, _) = at termoIf1
     putStrLn ("If True then 10 else 20 = " ++ show v1)  -- Esperado: 10
 
-    let (v5, _) = at termoIf5
+    let (v5, _, _) = at termoIf5
     putStrLn ("If InstanceOf Pessoa Pessoa then 1 else 0 = " ++ show v5)  -- Esperado: 1
 
-    let (v7, _) = at termoIf7
+    let (v7, _, _) = at termoIf7
     putStrLn ("If 3 then 1 else 2 = " ++ show v7)  -- Esperado: Erro
