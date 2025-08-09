@@ -353,6 +353,43 @@ int a (FieldAccess objeto campo) e h =
                         Nothing -> (Erro, e1, h1)
             _ -> (Erro, e1, h1)
 
+int a (Call objeto nomeMetodo argumentos) e h =
+      -- obtem ref do obj
+    let (vObj, e1, h1@(prox, objs)) = int a objeto e h
+    in case vObj of
+        Ref endereco ->
+            -- busca obj
+            case lookup endereco objs of
+                Just (nomeClasse, campos) ->
+                    -- busca def classe no ambiente
+                    case lookup nomeClasse a of
+                        Just (Classe _ membros) ->
+                            -- procura o metodo da classe
+                            case encontrarMetodo nomeMetodo membros of
+                                Just (MetodoDecl _ parametros corpo) ->
+                                    -- avalia argumentos
+                                    let 
+                                          (valoresArgs, e2, h2) = avaliarArgumentos a argumentos e1 h1
+                                    in 
+                                          -- compara o tamanho dos parametros passados com os argumentos do metodo
+                                          if length parametros == length valoresArgs
+                                          then
+                                                let
+                                                      -- cria ambiente e estados locais apenas para o metodo
+                                                      -- o this agora referencia a propria classe 
+                                                      -- (mas apenas durante a execucao, pois ele nao é transmitido adiante)
+                                                      ambienteMetodo = zip parametros valoresArgs ++ 
+                                                                  [("this", Ref endereco)] ++
+                                                                  a
+                                                      estadoMetodo = campos ++ e2
+                                                in 
+                                                      int ambienteMetodo corpo estadoMetodo h2
+                                          else (Erro, e2, h2)  -- numero de argumentos incorreto
+                                Nothing -> (Erro, e1, h1)
+                        Nothing -> (Erro, e1, h1)
+                Nothing -> (Erro, e1, h1)
+        _ -> (Erro, e1, h1)
+
 -- Implementação do For, que é uma estrutura de repetição com inicialização,
 -- condição e incremento.
 
@@ -429,6 +466,21 @@ atualizaCampo campoAlvo novoValor (nomeObj, campos) =
                   -- mantem
                   else (nomeCampo,valorCampo)) campos)
 
+encontrarMetodo :: Id -> [Membro] -> Maybe Membro
+encontrarMetodo _ [] = Nothing
+encontrarMetodo nome (m@(MetodoDecl nomeM _ _) : ms)
+    | nome == nomeM = Just m
+    | otherwise = encontrarMetodo nome ms
+encontrarMetodo nome (_ : ms) = encontrarMetodo nome ms
+
+avaliarArgumentos :: Ambiente -> [Termo] -> Estado -> Heap -> ([Valor], Estado, Heap)
+avaliarArgumentos a [] e h = ([], e, h)
+avaliarArgumentos a (t:ts) e h = 
+    let 
+      (v, e1, h1) = int a t e h
+      (vs, e2, h2) = avaliarArgumentos a ts e1 h1
+    in 
+      (v:vs, e2, h2)
 
 -- Chamando o interpretador com o ambiente e a memória vazios.
 
@@ -490,4 +542,29 @@ testarFor = do
     case search "soma" estadoFinal of
         Num n -> putStrLn $ "Soma final: " ++ show n
         _ -> putStrLn "Erro ao obter o valor da soma"
+
+exemploTeste :: IO ()
+exemploTeste = do
+    let programa = [
+            -- classe com metodo p dobrar numeros
+            ClasseDecl "Calculadora" [
+                Campo "memoria",
+                MetodoDecl "dobrar" ["x"] (Atr (FieldAccess (Var "calc") "memoria") 
+                                              (Mul (Var "x") (Lit 2)))],
+            -- funcao global p somar dois numeros
+            Def "soma" (Lam "a" (Lam "b" (Som (Var "a") (Var "b"))))]
+
+    -- Termo principal:
+    -- 1. Cria um objeto calc da classe Calculadora
+    -- 2. Usa o método dobrar passando 5
+    -- 3. Soma o valor da memória com 3 usando a função soma
+    let termoMain =
+            Seq (Atr (Var "calc") (New "Calculadora"))
+            (Seq (Call (Var "calc") "dobrar" [Lit 5])
+                 (Apl (Apl (Var "soma") (FieldAccess (Var "calc") "memoria")) (Lit 3)))
+
+    -- resultado final -> 13
+    let (resultado, _, _) = rodarPrograma programa termoMain
+    putStrLn $ "Resultado final: " ++ show resultado
+
 
