@@ -524,6 +524,7 @@ testarIf = do
     let (v7, _, _) = at termoIf7  -- Teste de erro funciona sem ambiente
     putStrLn ("If 3 then 1 else 2 = " ++ show v7)
 
+-- BLOCO DE TESTES COM FOR
 -- Testes para o For
 exemploFor :: Termo
 exemploFor = For (Atr (Var "i") (Lit 1))           -- init: i = 1
@@ -570,7 +571,7 @@ exemploTeste = do
     let (resultado, _, _) = rodarPrograma programa termoMain
     putStrLn $ "Resultado final: " ++ show resultado
 
-
+-- BLOCO DE TESTES COM THIS
 -- Aqui eu defino uma classe contador e depois vou utilizar ela utilizando o termoTesteThis
 programaContador :: Programa
 programaContador = [
@@ -616,6 +617,28 @@ testeThis = do
     putStrLn $ "Estado final: " ++ show estadoFinal
     putStrLn $ "Heap final: " ++ show heapFinal
     putStrLn $ "Resultado final do teste (esperado: 3.0): " ++ show resultado
+
+-- BLOCO DE TESTES COM FUNÇÃO GLOBAL (DEF FUNÇÃO)
+-- Este programa define uma função global 'soma' que recebe dois argumentos.
+-- A função é "curried", ou seja, 'soma' é uma função que recebe 'a' e
+-- retorna uma nova função que recebe 'b'.
+programaFuncaoGlobal :: Programa
+programaFuncaoGlobal = [
+    Def "soma" (Lam "a" (Lam "b" (Som (Var "a") (Var "b"))))]
+
+-- Este termo simula a chamada: soma(10)(20)
+-- A aplicação é aninhada: (soma 10) 20
+termoTesteFuncao :: Termo
+termoTesteFuncao = Apl (Apl (Var "soma") (Lit 10)) (Lit 20)
+
+testeFuncaoGlobal :: IO ()
+testeFuncaoGlobal = do
+    putStrLn "\n--- Teste de Definição de Função Global ('soma') ---"
+    
+    let (resultado, _, _) = rodarPrograma programaFuncaoGlobal termoTesteFuncao
+    
+    -- Imprime o resultado para verificação
+    putStrLn $ "Resultado da chamada soma(10)(20) (esperado: 30.0): " ++ show resultado
 
 
 
