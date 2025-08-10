@@ -155,7 +155,7 @@ data Termo = Var Id
            | New Id               -- ADICIONADO
            | InstanceOf Termo Id  -- ADICIONADO
            | If Termo Termo Termo  -- ADICIONADO
-           | This
+           | This                  -- Adicionado: Feature -<Chgs3> This
            | Call Termo Id [Termo]
            | For Termo Termo Termo Termo -- Adicionado: Feature - <Chgs3> For
            | Menor Termo Termo    -- Adicionado: Feature - <Chgs3> Menor (Auxiliar para o For)
@@ -429,6 +429,9 @@ int a (Igual t1 t2) e h =
     where (v1, e1, h1) = int a t1 e h
           (v2, e2, h2) = int a t2 e1 h1
 
+-- Implementação do This, que é usado para referenciar o objeto atual
+int a This e h = int a (Var "this") e h
+
 -- search :: Eq a => a -> [(a, Valor)] -> Valor
 
 search i [] = Erro
@@ -566,5 +569,53 @@ exemploTeste = do
     -- resultado final -> 13
     let (resultado, _, _) = rodarPrograma programa termoMain
     putStrLn $ "Resultado final: " ++ show resultado
+
+
+-- Aqui eu defino uma classe contador e depois vou utilizar ela utilizando o termoTesteThis
+programaContador :: Programa
+programaContador = [
+    ClasseDecl "Contador" [
+        -- Botei um campo para armazenar o número
+        Campo "valor",
+        
+        -- Um método para incrementar o valor.
+        -- Corpo: this.valor = this.valor + 1
+        MetodoDecl "inc" [] (Atr (FieldAccess This "valor") 
+                                 (Som (FieldAccess This "valor") (Lit 1))),
+        
+        -- Um método para obter o valor atual.
+        -- Corpo: return this.valor
+        MetodoDecl "get" [] (FieldAccess This "valor")
+    ]
+ ]
+
+-- Este termo simula os seguintes passos:
+-- c = new Contador();
+-- c.valor = 0;
+-- c.inc();
+-- c.inc();
+-- c.inc();
+-- resultado = c.get();
+termoTesteThis :: Termo
+termoTesteThis =
+    Seq (Atr (Var "c") (New "Contador"))
+    (Seq (Atr (FieldAccess (Var "c") "valor") (Lit 0))
+         (Seq (Call (Var "c") "inc" [])
+              (Seq (Call (Var "c") "inc" [])
+                   (Seq (Call (Var "c") "inc" [])
+                        (Call (Var "c") "get" [])))))
+
+testeThis :: IO ()
+testeThis = do
+    putStrLn "\n--- Teste de Classe com 'This' (Contador) ---"
+    
+    -- Roda o programa com o termo de teste
+    let (resultado, estadoFinal, heapFinal) = rodarPrograma programaContador termoTesteThis
+    
+    -- Imprime os resultados para verificação
+    putStrLn $ "Estado final: " ++ show estadoFinal
+    putStrLn $ "Heap final: " ++ show heapFinal
+    putStrLn $ "Resultado final do teste (esperado: 3.0): " ++ show resultado
+
 
 
