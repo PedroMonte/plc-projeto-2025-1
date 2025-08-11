@@ -298,29 +298,41 @@ int a (Atr left right) e h =
 int a (Seq t u) e h = int a u e1 h1
                     where (_,e1,h1) = int a t e h
 
-int a (While cond corpo) e h =                      -- ADICIONADO
+int a (While cond corpo) e h =   -- ADICIONADO
        case int a cond e h of
             (Bool True, e1, h1)  -> int a (Seq corpo (While cond corpo)) e1 h1
             (Bool False, e1, h1) -> (Null, e1, h1)
             (_, e1, h1)          -> (Erro, e1, h1)
 
-int a (New nomeClasse) e (proximoEndereco, objetos) =
-      -- procura def classe no ambiente
+int a (New nomeClasse) e (proximoEndereco, objetos) =  -- ADICIONADO
+      -- procura a definição da classe no ambiente
       case lookup nomeClasse a of
             -- encontra
             Just (Classe _ membros) ->
                   let
-                        -- inicializa campos
+                        -- inicializa campos da classe com Null
                         camposIniciais = [(nome, Null) | Campo nome <- membros]
-                        -- cria objeto
-                        objeto = (nomeClasse, camposIniciais)
-                        -- incorpora objeto na heap
-                        objs = (proximoEndereco, objeto) : objetos
-                        -- atualiza heap
-                        heap = (proximoEndereco+1, objs)
-                  in 
-                        (Ref proximoEndereco, e, heap)
-            -- erro
+                        -- cria objeto e aloca na heap antes do construtor (pra permitir mutações nos atributos)
+                        objeto0 = (nomeClasse, camposIniciais)
+                        objs1   = (proximoEndereco, objeto0) : objetos
+                        heap1   = (proximoEndereco + 1, objs1) -- incrementa o próximo endereço
+                        -- procura construtor sem parâmetros
+                        ctor = encontrarConstrutorSemParams membros
+                  in
+                        case ctor of
+                              -- construtor vazio: executa com this = Ref proximoEndereco
+                              Just (Construtor [] corpoCtor) ->
+                                    let ambienteCtor = ("this", Ref proximoEndereco) : a
+                                        estadoCtor   = camposIniciais ++ e
+                                        (_, e2, h2)  = int ambienteCtor corpoCtor estadoCtor heap1
+                                    in  (Ref proximoEndereco, e2, h2)
+                              -- construtor com parâmetros não é suportado por New sem argumentos
+                              Just (Construtor _ _) ->
+                                    (Erro, e, heap1)
+                              -- sem construtor, apenas retorna a referência ao objeto
+                              Nothing ->
+                                    (Ref proximoEndereco, e, heap1)
+            -- caso a classe não exista no ambiente, erro
             Nothing -> (Erro, e, (proximoEndereco, objetos))
 
 int a (InstanceOf objeto nomeClasse) e h =               -- ADICIONADO
@@ -475,6 +487,14 @@ encontrarMetodo nome (m@(MetodoDecl nomeM _ _) : ms)
     | nome == nomeM = Just m
     | otherwise = encontrarMetodo nome ms
 encontrarMetodo nome (_ : ms) = encontrarMetodo nome ms
+
+-- procura construtor sem parâmetros (se houver)
+encontrarConstrutorSemParams :: [Membro] -> Maybe Membro
+encontrarConstrutorSemParams [] = Nothing
+encontrarConstrutorSemParams (m@(Construtor params corpo) : ms)
+  | null params = Just m
+  | otherwise   = encontrarConstrutorSemParams ms
+encontrarConstrutorSemParams (_ : ms) = encontrarConstrutorSemParams ms
 
 avaliarArgumentos :: Ambiente -> [Termo] -> Estado -> Heap -> ([Valor], Estado, Heap)
 avaliarArgumentos a [] e h = ([], e, h)
@@ -640,5 +660,59 @@ testeFuncaoGlobal = do
     -- Imprime o resultado para verificação
     putStrLn $ "Resultado da chamada soma(10)(20) (esperado: 30.0): " ++ show resultado
 
+-- BLOCO DE TESTES COM WHILE
+-- Somando de 1 a 5 usando while
+exemploWhile :: Termo
+exemploWhile =
+  Seq (Atr (Var "i") (Lit 1)) -- i = 1
+  (Seq (Atr (Var "soma") (Lit 0)) -- soma = 0
+       (While (MenorIgual (Var "i") (Lit 5)) -- se i <= 5
+              (Seq (Atr (Var "soma") (Som (Var "soma") (Var "i"))) -- soma += i
+                   (Atr (Var "i") (Som (Var "i") (Lit 1)))))) -- i++
 
+testarWhile :: IO ()
+testarWhile = do
+  putStrLn "Testando loop While:"
 
+  let estadoInicial = [] -- 'i' e 'soma' são inicializados no próprio termo
+  let heapInicial   = (0, [])
+
+  let (resultado, estadoFinal, heapFinal) = int [] exemploWhile estadoInicial heapInicial
+
+  putStrLn $ "Resultado do While: " ++ show resultado
+  case search "soma" estadoFinal of
+    Num n -> putStrLn $ "Soma final (esperado 15.0): " ++ show n
+    _     -> putStrLn "Erro ao obter 'soma'"
+  putStrLn $ "Estado final: " ++ show estadoFinal
+  putStrLn $ "Heap final: "   ++ show heapFinal
+
+-- BLOCO DE TESTES COM NEW
+-- Programa com classe Pessoa (campos: nome, idade)
+programaNew :: Programa
+programaNew =
+  [ ClasseDecl "Pessoa" [Campo "nome", Campo "idade"] ]
+
+-- Termo: p = new Pessoa; p.idade = 42; retorna p.idade
+termoNewMain :: Termo
+termoNewMain =
+  Seq (Atr (Var "p") (New "Pessoa"))
+  (Seq (Atr (FieldAccess (Var "p") "idade") (Lit 42))
+       (FieldAccess (Var "p") "idade"))
+
+-- Termo que tentar instanciar classe inexistente
+termoNewErro :: Termo
+termoNewErro = New "NaoExiste"
+
+testarNew :: IO ()
+testarNew = do
+  putStrLn "Testando New:"
+
+  -- caso OK: cria pessoa e leitura do campo idade
+  let (resOk, estOk, heapOk) = rodarPrograma programaNew termoNewMain
+  putStrLn $ "Resultado (esperado 42.0): " ++ show resOk
+  putStrLn $ "Estado final: " ++ show estOk
+  putStrLn $ "Heap final: "   ++ show heapOk
+
+  -- caso Erro: tenta instanciar classe inexistente
+  let (resErr, _, _) = rodarPrograma programaNew termoNewErro
+  putStrLn $ "New com classe inexistente (esperado Erro): " ++ show resErr
