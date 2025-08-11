@@ -27,3 +27,11 @@ main = do
     putStrLn ("Média:" ++ show teste1)
     putStrLn ("Funinterpreter >" ++ (show (intPrograma ambientesimples prog1)))    
     putStrLn ("Int Prova >" ++ (show (resv)) ++ " \n>>> " ++ (show ress))    
+    let (val1, _) = at (InstanceOf (New "Poupanca") "Poupanca")
+    let (val2, _) = at (InstanceOf (New "Conta") "Poupanca")
+    putStrLn ("InstanceOf (Poupanca, Poupanca): " ++ show val1)  -- deve responder Bool True
+    putStrLn ("InstanceOf (Conta, Poupanca): " ++ show val2)     -- deve responder Bool False
+    let (multResult, _) = at (Mul (InterpretacaoEAnaliseEstaticaDelinguagens.Lit 3) --pra nao dar ambiguidade
+                              (InterpretacaoEAnaliseEstaticaDelinguagens.Lit 4))
+    putStrLn (show multResult)
+    testarIf
